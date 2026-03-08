@@ -1,8 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
-      "Bash(git add .claude/settings.local.json)"
+      "Bash(git *)"
     ]
   }
 }

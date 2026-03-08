@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add CLAUDE.md)",
+      "Bash(git commit:*)",
+      "Bash(git add .claude/)"
+    ]
+  }
+}

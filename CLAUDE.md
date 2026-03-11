@@ -9,6 +9,7 @@
 - **Next.js 16** (App Router), **React 19**, **TypeScript 5** (strict mode)
 - **Tailwind CSS 4**, **shadcn/ui**, **Radix UI**
 - **@anthropic-ai/sdk** — AI integration
+- **better-sqlite3** — SQLite persistence (server-only)
 - **Biome** — linting, formatting, import sorting
 - **Vitest** + **React Testing Library** — testing
 
@@ -76,6 +77,7 @@ import { AnthropicAgent } from "@/entities/agent/model/AnthropicAgent";
 ```
 app/                    # Next.js routing only (layout, pages, API routes)
   api/chat/route.ts     # Streaming chat POST endpoint
+  api/history/route.ts  # GET conversation history
 
 src/
   app/                  # FSD app layer (providers, styles, fonts)
@@ -84,9 +86,10 @@ src/
   features/             # FSD features layer
   entities/             # FSD entities layer
     agent/              # AnthropicAgent entity
+    conversation/       # Chat history persistence (SQLite)
   shared/               # FSD shared layer
     ui/                 # shadcn/ui components
-    lib/                # utilities (cn)
+    lib/                # utilities (cn, db)
 ```
 
 ## Import Aliases
@@ -137,6 +140,7 @@ Requires `ANTHROPIC_API_KEY` in `.env.local`:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
+SQLITE_DB_PATH=data/chat.db  # optional, defaults to <cwd>/data/chat.db
 ```
 
 ## Core Patterns
@@ -160,7 +164,23 @@ Create under `src/features/<name>/`:
 
 ### API routes
 
-Live in `app/api/`. Use `AnthropicAgent` from `@/entities/agent` for AI calls. Support streaming via `ReadableStream`.
+Live in `app/api/`. Use `AnthropicAgent` from `@/entities/agent` for AI calls. Support streaming via `ReadableStream`. Instantiate `AnthropicAgent` once as a module-level lazy singleton (`agent ??= new AnthropicAgent()`), not per-request — the underlying `Anthropic` client is also cached the same way inside the entity.
+
+### Singletons
+
+Server-only singletons (DB connections, repositories, SDK clients) use the `let instance = null; function get() { instance ??= new X(); return instance; }` pattern at module scope. Examples: `getDb()` in `shared/lib/db.ts`, `getConversationRepository()` in `entities/conversation`.
+
+### Intra-slice imports
+
+Within a single slice, segments may import each other with relative paths (e.g., `api/` imports from `../model/types`). The "no deep imports" rule applies to **consumers outside the slice**, not to the slice's own internals.
+
+### FSD barrel imports vs tree-shaking
+
+Slice `index.ts` is the FSD public API — never deep-import internals to avoid barrel files. When all barrel exports are consumed by the importer, there is no bundle issue.
+
+### React Compiler
+
+The project uses React Compiler (`babel-plugin-react-compiler`). It auto-tracks hook dependencies, so explicit dep arrays on `useEffect`/`useMemo`/`useCallback` may trigger "specifies more dependencies than necessary" errors. Use the `useLatest` ref pattern for stable callbacks that need to read current state without re-creating.
 
 ### Default AI model
 

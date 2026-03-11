@@ -5,19 +5,24 @@ import {
   DEFAULT_AGENT_CONFIG,
 } from "./types";
 
+let clientInstance: Anthropic | null = null;
+
+function getClient(): Anthropic {
+  clientInstance ??= new Anthropic();
+  return clientInstance;
+}
+
 export class AnthropicAgent {
-  private client: Anthropic;
   private config: Required<AgentConfig>;
 
   constructor(config: AgentConfig = {}) {
-    this.client = new Anthropic();
     this.config = { ...DEFAULT_AGENT_CONFIG, ...config };
   }
 
   chat(messages: ChatMessage[]): ReadableStream<Uint8Array> {
     const { model, maxTokens, systemPrompt } = this.config;
 
-    const stream = this.client.messages.stream({
+    const stream = getClient().messages.stream({
       model,
       max_tokens: maxTokens,
       system: systemPrompt,

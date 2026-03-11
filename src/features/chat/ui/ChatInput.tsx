@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp } from "lucide-react";
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, memo, useRef, useState } from "react";
 import {
   InputGroup,
   InputGroupAddon,
@@ -14,7 +14,10 @@ interface ChatInputProps {
   isLoading: boolean;
 }
 
-export function ChatInput({ onSend, isLoading }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({
+  onSend,
+  isLoading,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -58,4 +61,4 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
       </InputGroupAddon>
     </InputGroup>
   );
-}
+});

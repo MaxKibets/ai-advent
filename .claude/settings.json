@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"$CLAUDE_TOOL_INPUT_FILE_PATH\" | grep -qi \"\\.env\" && { echo \"Blocked: do not edit .env files\" >&2; exit 2; }; exit 0'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"$CLAUDE_TOOL_INPUT_FILE_PATH\" | grep -qE \"\\.(ts|tsx|js|jsx|json|css)$\" && cd \"d:/DEV/ai-advent\" && npx biome check --write \"$CLAUDE_TOOL_INPUT_FILE_PATH\"; exit 0'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'f=\"$CLAUDE_TOOL_INPUT_FILE_PATH\"; case \"$f\" in *.ts|*.tsx) ;; *) exit 0;; esac; pat=\"\"; if echo \"$f\" | grep -qE \"[/\\\\]entities[/\\\\]\"; then pat=\"@/(views|widgets|features)/\"; elif echo \"$f\" | grep -qE \"[/\\\\]features[/\\\\]\"; then pat=\"@/(views|widgets)/\"; elif echo \"$f\" | grep -qE \"[/\\\\]widgets[/\\\\]\"; then pat=\"@/views/\"; fi; [ -z \"$pat\" ] && exit 0; grep -qE \"$pat\" \"$f\" && { echo \"FSD VIOLATION: illegal upward import\" >&2; grep -nE \"$pat\" \"$f\" >&2; exit 2; } || exit 0'"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "hookify@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true
+  }
+}

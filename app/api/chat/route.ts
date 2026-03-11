@@ -1,8 +1,10 @@
 import { AnthropicAgent, type ChatMessage } from "@/entities/agent";
+import { getConversationRepository } from "@/entities/conversation";
+
+let agent: AnthropicAgent | null = null;
 
 export async function POST(request: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(
       { error: "ANTHROPIC_API_KEY is not configured" },
       { status: 500 },
@@ -10,7 +12,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as { messages?: ChatMessage[] };
+    const body = (await request.json()) as {
+      messages?: ChatMessage[];
+      conversationId?: number;
+    };
 
     if (!body.messages || !Array.isArray(body.messages)) {
       return Response.json(
@@ -19,10 +24,41 @@ export async function POST(request: Request) {
       );
     }
 
-    const agent = new AnthropicAgent();
-    const stream = agent.chat(body.messages);
+    const repo = getConversationRepository();
+    const conversation = body.conversationId
+      ? { id: body.conversationId }
+      : repo.getOrCreateDefault();
 
-    return new Response(stream, {
+    // Persist user message before streaming
+    const userMessage = body.messages[body.messages.length - 1];
+    if (userMessage?.role === "user") {
+      repo.saveMessage(conversation.id, "user", userMessage.content);
+    }
+
+    agent ??= new AnthropicAgent();
+    const agentStream = agent.chat(body.messages);
+
+    // Tee: accumulate assistant text while streaming to client
+    let accumulated = "";
+    const decoder = new TextDecoder();
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        accumulated += decoder.decode(chunk, { stream: true });
+        controller.enqueue(chunk);
+      },
+      flush() {
+        accumulated += decoder.decode(); // drain remaining bytes
+        if (accumulated) {
+          repo.saveMessage(conversation.id, "assistant", accumulated);
+        }
+      },
+    });
+
+    agentStream.pipeTo(writable).catch(() => {
+      // Stream error — partial assistant response is not persisted
+    });
+
+    return new Response(readable, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Transfer-Encoding": "chunked",
